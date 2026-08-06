@@ -1,5 +1,6 @@
 package app.wird.ui.settings
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,15 +36,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.wird.data.ColorSource
 import app.wird.data.DarkMode
 import app.wird.data.Reciters
 import app.wird.ui.WirdViewModel
 import app.wird.ui.theme.NotoArabic
+
+/** Must stay in sync with the published page; a dead link is a Play rejection. */
+const val PRIVACY_POLICY_URL = "https://2plus1star.github.io/material-quran/privacy/"
 
 @Composable
 fun SettingsScreen(
@@ -54,6 +60,7 @@ fun SettingsScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val s = settings ?: return
     val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -199,6 +206,23 @@ fun SettingsScreen(
                     "Free, ad-free, forever.",
                 style = MaterialTheme.typography.bodySmall,
                 color = cs.onSurfaceVariant,
+            )
+            // Play requires a privacy policy link inside the app, not only in
+            // Console. Keep this pointing at a live, publicly reachable page.
+            Text(
+                "Privacy policy",
+                style = MaterialTheme.typography.bodyMedium,
+                color = cs.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri()),
+                            )
+                        }
+                    }
+                    .padding(vertical = 8.dp),
             )
             Text(
                 "Licences and notices",

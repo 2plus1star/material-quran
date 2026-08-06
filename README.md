@@ -6,6 +6,14 @@ Expressive.
 Play Store title: **Material Quran** · package `app.wird` · free, no ads, no
 accounts, no analytics.
 
+
+<p align="center">
+  <img src="docs/screenshots/q-01-library.png" width="24%" alt="Surah list with the last-read card">
+  <img src="docs/screenshots/q-02-baqarah.png" width="24%" alt="Al-Baqara with the Basmala set apart as a heading above ayah 1">
+  <img src="docs/screenshots/q-03-tajweed.png" width="24%" alt="The same page with tajweed colouring enabled">
+  <img src="docs/screenshots/q-05-settings.png" width="24%" alt="Reading settings">
+</p>
+
 ## What it does
 
 - **Read** — Uthmani Arabic text with an English translation after each ayah,
@@ -96,15 +104,30 @@ app/src/main/java/app/wird/
 tools/           build_db.py and the Tanzil / QuranEnc / tajweed sources
 ```
 
-## Licensing
-
-See [ATTRIBUTION.md](ATTRIBUTION.md). Short version: the Arabic text is Tanzil
-under CC BY 3.0 and needs a visible source credit and a link to tanzil.net; the
-translation is Noor International via QuranEnc and must stay unmodified; the
-fonts are OFL; recitation audio is not bundled.
-
 ## Privacy
 
 See [PRIVACY.md](PRIVACY.md). No accounts, no analytics, no tracking. The only
 network request is fetching recitation audio from everyayah.com, and only when
 the user asks for it.
+
+## Licence
+
+The source code is licensed under the [Apache License 2.0](LICENSE).
+
+That covers the code in this repository only. **The Quran text, the translation,
+the tajweed data and the fonts are not ours to relicense**, and the Apache
+licence does not extend to them:
+
+| Asset | Terms |
+|---|---|
+| Arabic text | [Tanzil Project](https://tanzil.net), CC BY 3.0. Redistributed verbatim; Tanzil's terms also state that changing it is not allowed. |
+| English translation | Noor International (Saheeh) via [QuranEnc.com](https://quranenc.com). Republished unmodified, which is a condition of their terms. |
+| Tajweed annotations | [cpfair/quran-tajweed](https://github.com/cpfair/quran-tajweed), CC BY 4.0. Offsets were re-based; see ATTRIBUTION.md. |
+| Noto Sans Arabic, Baloo Bhaijaan 2 | SIL Open Font License 1.1. |
+
+Recitation audio is **not** bundled. It is downloaded from everyayah.com at the
+user's request and remains the property of each reciter and producer.
+
+If you fork this, read [ATTRIBUTION.md](ATTRIBUTION.md) before redistributing.
+The translation in particular must stay unmodified, which is why the publisher's
+inline footnote markers are preserved rather than stripped.

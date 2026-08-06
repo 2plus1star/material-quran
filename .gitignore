@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+app/build
+tools/data
+
+# Signing material — NEVER commit.
+*.jks
+*.keystore
+*.p12
+*.pepk
+keystore.properties
+signing.properties
+
+# Build/tooling leftovers
+.kotlin/
+/app/release/
+/app/debug/
+*.hprof

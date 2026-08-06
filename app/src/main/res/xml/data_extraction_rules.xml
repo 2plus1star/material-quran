@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only `datastore` is listed, so only settings, bookmarks and the reading
+  position are backed up. Downloaded recitation audio (filesDir/audio, often
+  gigabytes) is excluded by omission — an explicit <exclude> for it is not just
+  redundant but a lint error, because an exclude has to sit inside an included
+  path, and that error gates bundleRelease.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="datastore" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="datastore" />
+    </device-transfer>
+</data-extraction-rules>

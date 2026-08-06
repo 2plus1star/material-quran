@@ -1,0 +1,27 @@
+<resources>
+    <!-- App name (Settings, task switcher, Play). Home screen uses launcher_name.
+         Not "Pixel" — that is a listed Google trademark and this app has no
+         pixel-art meaning to fall back on. "Material" is not on Google's
+         trademark list and a dozen third-party "Material *" apps ship on Play. -->
+    <string name="app_name">Material Quran</string>
+    <!-- Shown under the launcher icon, like "Photos" for Google Photos. -->
+    <string name="launcher_name">Quran</string>
+    <string name="channel_playback">Recitation</string>
+
+    <!-- Attribution. The Quran text is redistributed under Tanzil's terms, which
+         require the source to be named; the tajweed data is CC-BY. -->
+    <string name="about_text_source">Quran text: Tanzil Project (tanzil.net)</string>
+    <string name="about_tajweed_source">Tajweed data: cpfair/quran-tajweed (CC BY 4.0)</string>
+
+    <!-- Failure messages. Every one of these was previously a silent no-op. -->
+    <string name="error_playback">Couldn\'t play that recitation. Check your connection, or download the surah.</string>
+    <string name="error_download">Download failed. Tap to try again.</string>
+    <string name="error_library">Couldn\'t open the Quran database.</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="download_cancel">Cancel download</string>
+    <string name="download_delete_confirm_title">Remove downloaded audio?</string>
+    <string name="download_delete_confirm_body">This deletes every surah you have downloaded for %1$s. You can download them again later.</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_cancel">Cancel</string>
+</resources>

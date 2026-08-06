@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API <= 30 backup path. Same reasoning as data_extraction_rules.xml. -->
+<full-backup-content>
+    <include domain="file" path="datastore" />
+</full-backup-content>

@@ -1,0 +1,45 @@
+Material Quran is a Quran reader.
+
+The full Arabic text is stored in the app. You do not need a connection to
+read.
+
+WHAT IT DOES
+
+Uthmani Arabic text.
+English translation after each ayah, with the publisher footnotes.
+Tajweed colors, so you can see the recitation rules in the text.
+Recitation audio from 16 reciters.
+The ayah being recited is highlighted as it plays.
+Bookmarks.
+Book mode, where the ayahs flow continuously like a printed page.
+
+NAVIGATION
+
+Browse by surah, juz, hizb, or page.
+The app remembers where you stopped reading.
+
+AUDIO
+
+Play one ayah, a range of ayahs, or a whole surah.
+Repeat each ayah 1, 3, or 5 times, or without stopping.
+Download a surah to listen without a connection.
+Playback continues when the screen is off. Controls are on the lock screen.
+
+READING
+
+Adjust the Arabic text size.
+Sepia, light, and dark reading themes, and an AMOLED black option.
+Translation can be turned off.
+
+SOURCES
+
+Quran text: Tanzil Project, tanzil.net, used unchanged.
+Translation: Noor International (Saheeh), from QuranEnc.com, used unchanged.
+Tajweed data: cpfair/quran-tajweed, CC BY 4.0.
+Fonts: Noto Sans Arabic and Baloo Bhaijaan 2, SIL Open Font License 1.1.
+
+Recitation audio is not included in the app. It is downloaded from
+everyayah.com when you choose a reciter. Each recording belongs to its
+reciter and producer.
+
+The full licence notices are in the app, under Settings.

@@ -20,7 +20,13 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.wird"
+        // Deliberately not "app.wird": wird.app is a live Arabic Islamic
+        // platform of the same name, and F-Droid rejects outright any
+        // "application ID matching another domain name". materialquran.app is
+        // unregistered, so this collides with nothing and matches the product
+        // name. The Kotlin package below stays app.wird — namespace and
+        // applicationId are independent, and only the latter is published.
+        applicationId = "app.materialquran"
         minSdk = 26
         targetSdk = 36
         // Burned permanently on the first accepted Play upload, to ANY track.

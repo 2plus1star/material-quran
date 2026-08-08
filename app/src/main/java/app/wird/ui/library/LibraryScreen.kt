@@ -50,6 +50,7 @@ import app.wird.ui.theme.NotoArabic
 @Composable
 fun LibraryScreen(vm: WirdViewModel, openReader: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val lastRead by vm.lastRead.collectAsStateWithLifecycle()
     val s = settings ?: return
     val cs = MaterialTheme.colorScheme
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -80,7 +81,7 @@ fun LibraryScreen(vm: WirdViewModel, openReader: () -> Unit) {
             ),
         )
 
-        LastReadCard(vm, s.lastRead, openReader)
+        LastReadCard(vm, lastRead, openReader)
 
         // Surah / Juz / Hizb / Page — the four ways into the text, each keyed
         // by its own shape so the badge itself names the division.
@@ -138,13 +139,13 @@ private fun LastReadCard(vm: WirdViewModel, lastRead: LastRead, openReader: () -
         } else {
             ""
         }
-        val ayahs = vm.ayahsFor(lastRead.context)
-        val fraction = if (ayahs.isEmpty()) {
+        // COUNT(*), not the rows themselves: only the denominator is wanted here.
+        val total = vm.ayahCountFor(lastRead.context)
+        val fraction = if (total == 0) {
             0f
         } else {
             // progressIndex = furthest-read row, so a one-screen surah reads full.
-            ((lastRead.progressIndex.coerceIn(0, ayahs.lastIndex) + 1f) / ayahs.size)
-                .coerceIn(0f, 1f)
+            ((lastRead.progressIndex.coerceIn(0, total - 1) + 1f) / total).coerceIn(0f, 1f)
         }
         value = label to fraction
     }
@@ -195,10 +196,13 @@ private fun SurahList(vm: WirdViewModel, openReader: () -> Unit) {
         itemsIndexed(surahs, key = { _, s -> s.id }) { index, surah ->
             SegmentedListItem(
                 onClick = {
-                    vm.openContext(
-                        ReaderContext(ReaderContextType.SURAH, surah.id),
-                        scrollToAyahId = surah.startAyahId,
-                    )
+                    // No scrollToAyahId. Asking for the surah's first ayah is a
+                    // jump request, and a jump request beats the saved position —
+                    // so remembering where you were was pointless from the
+                    // Library, which is the only way most people open a surah.
+                    // With no request, openContext restores this surah's own
+                    // position, or starts at the top if there isn't one.
+                    vm.openContext(ReaderContext(ReaderContextType.SURAH, surah.id))
                     openReader()
                 },
                 shapes = ListItemDefaults.segmentedShapes(index = index, count = surahs.size),
@@ -265,10 +269,8 @@ private fun DivisionList(vm: WirdViewModel, type: ReaderContextType, openReader:
         itemsIndexed(items, key = { _, d -> d.number }) { index, division ->
             SegmentedListItem(
                 onClick = {
-                    vm.openContext(
-                        ReaderContext(type, division.number),
-                        scrollToAyahId = division.startAyahId,
-                    )
+                    // Same as the surah list: let the saved position win.
+                    vm.openContext(ReaderContext(type, division.number))
                     openReader()
                 },
                 shapes = ListItemDefaults.segmentedShapes(index = index, count = items.size),

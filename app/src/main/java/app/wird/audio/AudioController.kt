@@ -12,8 +12,9 @@ import app.wird.data.Ayah
 import app.wird.data.AudioStore
 import app.wird.data.Reciter
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 /** How many times to recite each ayah before moving on. -1 = forever. */
 enum class RepeatCount(val times: Int, val label: String) {
@@ -127,21 +128,57 @@ class AudioController(private val context: Context) {
         applyRepeatMode()
     }
 
+    /** The queue currently loaded, kept so the reciter can be swapped in place. */
+    private var queue: List<Ayah> = emptyList()
+    private var queueReciter: Reciter? = null
+
     /**
      * Plays [ayahs] (already the desired range) starting at [startAyahId].
      *
      * [surahName] reaches the media notification and the lock screen, where
      * "2:255" alone read as a cryptic pair of numbers.
+     *
+     * Suspending because building the queue means asking the filesystem, once
+     * per ayah, whether a local recording exists. Pressing Play on Al-Baqarah
+     * was 286 blocking `stat` calls on the main thread inside the click
+     * handler — a visible stall on a cold page cache, and a StrictMode disk-read
+     * violation on every device. The URIs are resolved on IO and only the
+     * MediaController calls happen back on the main thread.
      */
-    fun play(
+    suspend fun play(
         ayahs: List<Ayah>,
         reciter: Reciter,
         startAyahId: Int? = null,
         surahName: (Int) -> String = { "" },
     ) {
-        val c = controller ?: return
-        lastError.value = null
-        val items = ayahs.map { ayah ->
+        if (ayahs.isEmpty()) return
+        if (controller == null) {
+            // The MediaController binds asynchronously. Pressing Play in the
+            // first moment after a cold start used to return here in silence.
+            lastError.value = NOT_READY
+            return
+        }
+        val items = buildItems(ayahs, reciter, surahName)
+        withContext(Dispatchers.Main) {
+            val c = controller ?: return@withContext
+            lastError.value = null
+            queue = ayahs
+            queueReciter = reciter
+            val start = ayahs.indexOfFirst { it.id == startAyahId }.coerceAtLeast(0)
+            repeatsDone = 0
+            c.setMediaItems(items, start, 0L)
+            applyRepeatMode()
+            c.prepare()
+            c.play()
+        }
+    }
+
+    private suspend fun buildItems(
+        ayahs: List<Ayah>,
+        reciter: Reciter,
+        surahName: (Int) -> String,
+    ): List<MediaItem> = withContext(Dispatchers.IO) {
+        ayahs.map { ayah ->
             val name = surahName(ayah.surah)
             MediaItem.Builder()
                 .setUri(store.playbackUri(reciter, ayah.surah, ayah.num))
@@ -154,15 +191,40 @@ class AudioController(private val context: Context) {
                 )
                 .build()
         }
-        val start = ayahs.indexOfFirst { it.id == startAyahId }.coerceAtLeast(0)
-        repeatsDone = 0
-        c.setMediaItems(items, start, 0L)
-        applyRepeatMode()
-        c.prepare()
-        c.play()
     }
 
-    fun playSingle(ayah: Ayah, reciter: Reciter, surahName: (Int) -> String = { "" }) =
+    /**
+     * Swap the voice without losing your place.
+     *
+     * Choosing a reciter from the play sheet only ever wrote a preference, so
+     * mid-recitation it did nothing at all and the sheet gave no hint that the
+     * change would not take effect until the next Play. The queue and the
+     * position within the current ayah are preserved, so the same words continue
+     * in the new voice.
+     */
+    suspend fun changeReciter(reciter: Reciter, surahName: (Int) -> String = { "" }) {
+        val current = queue
+        if (current.isEmpty() || queueReciter?.dirName == reciter.dirName) {
+            queueReciter = reciter
+            return
+        }
+        val c = controller ?: return
+        val index = c.currentMediaItemIndex.coerceIn(0, current.lastIndex)
+        val position = c.currentPosition.coerceAtLeast(0L)
+        val wasPlaying = c.isPlaying
+        val items = buildItems(current, reciter, surahName)
+        withContext(Dispatchers.Main) {
+            val live = controller ?: return@withContext
+            queueReciter = reciter
+            lastError.value = null
+            live.setMediaItems(items, index, position)
+            applyRepeatMode()
+            live.prepare()
+            if (wasPlaying) live.play()
+        }
+    }
+
+    suspend fun playSingle(ayah: Ayah, reciter: Reciter, surahName: (Int) -> String = { "" }) =
         play(listOf(ayah), reciter, ayah.id, surahName)
 
     fun togglePause() {
@@ -177,10 +239,17 @@ class AudioController(private val context: Context) {
         }
         currentAyahId.value = null
         isPlaying.value = false
+        queue = emptyList()
+        queueReciter = null
     }
 
     fun release() {
         controller?.release()
         controller = null
+    }
+
+    companion object {
+        /** Sentinel for "the playback service had not bound yet". */
+        const val NOT_READY = "NOT_READY"
     }
 }

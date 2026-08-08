@@ -1,8 +1,11 @@
 package app.wird.ui.settings
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -36,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
@@ -46,6 +51,7 @@ import app.wird.data.ColorSource
 import app.wird.data.DarkMode
 import app.wird.data.Reciters
 import app.wird.ui.WirdViewModel
+import app.wird.ui.reader.TajweedPalette
 import app.wird.ui.theme.NotoArabic
 
 /** Must stay in sync with the published page; a dead link is a Play rejection. */
@@ -81,7 +87,14 @@ fun SettingsScreen(
 
             SwitchRow(
                 title = "English translation",
-                subtitle = "Noor International (Saheeh), after each ayah",
+                // Book mode has no room for a translation between verses, so it
+                // suppresses this. Saying so stops the switch looking broken:
+                // it stays on, and nothing changes on the page.
+                subtitle = if (s.bookMode) {
+                    "In book mode, tap an ayah to read its translation"
+                } else {
+                    "Noor International (Saheeh), after each ayah"
+                },
                 checked = s.showTranslation,
                 onChecked = vm::setShowTranslation,
             )
@@ -97,6 +110,32 @@ fun SettingsScreen(
                 checked = s.showTajweed,
                 onChecked = vm::setShowTajweed,
             )
+            if (s.showTajweed) {
+                val dark = when (s.darkMode) {
+                    DarkMode.SYSTEM -> isSystemInDarkTheme()
+                    DarkMode.LIGHT -> false
+                    DarkMode.DARK -> true
+                }
+                Block("What the colors mean") {
+                    TajweedPalette.legend.forEach { entry ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        TajweedPalette.color(entry.rule, dark) ?: cs.onSurface,
+                                    ),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(entry.label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
 
             Block("Arabic size") {
                 // Local state drives the preview synchronously; DataStore is
@@ -159,6 +198,7 @@ fun SettingsScreen(
 
             Block("Reciters") {
                 Reciters.ALL.forEach { reciter ->
+                    val isDefault = s.reciterId == reciter.dirName
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -180,8 +220,16 @@ fun SettingsScreen(
                         ) {
                             Icon(
                                 Icons.Default.Check,
-                                contentDescription = "Set as default reciter",
-                                tint = if (s.reciterId == reciter.dirName) cs.primary else cs.outlineVariant,
+                                // Which reciter is the default was carried by the
+                                // tint alone, so a screen reader announced the
+                                // same thing sixteen times and anyone who cannot
+                                // separate green from grey saw sixteen ticks.
+                                contentDescription = if (isDefault) {
+                                    "${reciter.name} is the default reciter"
+                                } else {
+                                    "Make ${reciter.name} the default reciter"
+                                },
+                                tint = if (isDefault) cs.primary else cs.outlineVariant,
                             )
                         }
                         IconButton(
@@ -190,7 +238,7 @@ fun SettingsScreen(
                         ) {
                             Icon(
                                 Icons.Default.KeyboardArrowRight,
-                                contentDescription = "Manage downloads",
+                                contentDescription = "Manage ${reciter.name} downloads",
                                 tint = cs.onSurfaceVariant,
                             )
                         }

@@ -33,6 +33,7 @@ class SettingsRepository(private val context: Context) {
         val reciter = stringPreferencesKey("reciter")
         val lastRead = stringPreferencesKey("last_read")
         val bookmarks = stringPreferencesKey("bookmarks")
+        val positions = stringPreferencesKey("reading_positions")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data
@@ -57,6 +58,7 @@ class SettingsRepository(private val context: Context) {
         arabicScale = this[Keys.arabicScale] ?: 1.0f,
         reciterId = this[Keys.reciter] ?: Reciters.DEFAULT.dirName,
         lastRead = decode(this[Keys.lastRead]) ?: LastRead(),
+        positions = decode(this[Keys.positions]) ?: ReadingPositions(),
         bookmarks = decode(this[Keys.bookmarks]) ?: emptyList(),
     )
 
@@ -76,8 +78,20 @@ class SettingsRepository(private val context: Context) {
     suspend fun setArabicScale(v: Float) = put(Keys.arabicScale, v.coerceIn(0.8f, 1.8f))
     suspend fun setReciter(dirName: String) = put(Keys.reciter, dirName)
 
-    suspend fun setLastRead(value: LastRead) =
-        put(Keys.lastRead, json.encodeToString(LastRead.serializer(), value))
+    /**
+     * Records the position both as "most recent" (for the Library card) and
+     * against its own context, in one atomic edit so the two cannot diverge.
+     */
+    suspend fun setLastRead(value: LastRead) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.lastRead] = json.encodeToString(LastRead.serializer(), value)
+            val current: ReadingPositions =
+                prefs[Keys.positions]?.let { raw ->
+                    runCatching { json.decodeFromString<ReadingPositions>(raw) }.getOrNull()
+                } ?: ReadingPositions()
+            prefs[Keys.positions] = json.encodeToString(current.with(value))
+        }
+    }
 
     /**
      * @return true if the bookmark was added, false if removed or refused.

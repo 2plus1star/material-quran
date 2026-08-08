@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,11 +58,23 @@ fun NumberBadge(
     container: Color = MaterialTheme.colorScheme.secondaryContainer,
     content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
+    // The shape is the only thing that says Meccan or Medinan, and a shape is
+    // not announced. Without this a screen reader read "2" and stopped.
+    val spoken = buildString {
+        append(type.name.lowercase().replaceFirstChar { it.uppercase() })
+        append(' ')
+        append(number)
+        if (type == ReaderContextType.SURAH && !revelation.isNullOrBlank()) {
+            append(", ")
+            append(revelation)
+        }
+    }
     Box(
         modifier
             .size(size)
             .clip(badgeShape(type, revelation))
-            .background(container),
+            .background(container)
+            .semantics { contentDescription = spoken },
         contentAlignment = Alignment.Center,
     ) {
         Text(

@@ -13,7 +13,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -22,11 +26,13 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +56,8 @@ fun ReciterManagerScreen(vm: WirdViewModel, reciterId: String, onBack: () -> Uni
     val cs = MaterialTheme.colorScheme
     val reciter = Reciters.byId(reciterId)
     val scope = rememberCoroutineScope()
+    var confirmRemoveAll by remember { mutableStateOf(false) }
+    var confirmDownloadAll by remember { mutableStateOf(false) }
     // Bumped to re-evaluate downloaded state after deletes/downloads.
     var refresh by remember { mutableIntStateOf(0) }
 
@@ -63,33 +71,20 @@ fun ReciterManagerScreen(vm: WirdViewModel, reciterId: String, onBack: () -> Uni
             },
             actions = {
                 IconButton(
-                    onClick = {
-                        scope.launch {
-                            withContext(Dispatchers.IO) {
-                                vm.surahs.forEach { surah ->
-                                    if (!vm.audioStore.isSurahDownloaded(reciter, surah.id, surah.ayahCount)) {
-                                        vm.audioStore.enqueueSurahDownload(reciter, surah.id, surah.ayahCount)
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    // Queues the whole Quran in one voice: hundreds of megabytes
+                    // over whatever connection happens to be up. Say so first.
+                    onClick = { confirmDownloadAll = true },
                     shapes = IconButtonDefaults.shapes(),
                 ) {
                     Icon(WirdIcons.Download, contentDescription = "Download all")
                 }
                 IconButton(
-                    onClick = {
-                        scope.launch {
-                            vm.surahs.forEach { surah ->
-                                vm.audioStore.deleteSurah(reciter, surah.id, surah.ayahCount)
-                            }
-                            refresh++
-                        }
-                    },
+                    // Confirm first. This deletes every downloaded surah for the
+                    // reciter, which can be several gigabytes, and there is no undo.
+                    onClick = { confirmRemoveAll = true },
                     shapes = IconButtonDefaults.shapes(),
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Remove all")
+                    Icon(Icons.Default.Delete, contentDescription = "Remove all downloads")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -109,8 +104,16 @@ fun ReciterManagerScreen(vm: WirdViewModel, reciterId: String, onBack: () -> Uni
                 val percent by vm.audioStore
                     .downloadProgress(reciter, surah.id)
                     .collectAsStateWithLifecycle(initialValue = -1)
-                val downloaded by produceState(
-                    initialValue = false,
+                val failed by vm.audioStore
+                    .downloadFailed(reciter, surah.id)
+                    .collectAsStateWithLifecycle(initialValue = false)
+                // null = not looked yet. It used to start at `false`, which is a
+                // claim, not an absence: every already-downloaded surah rendered
+                // a Download button for a frame or two before the check came
+                // back, so opening this screen flashed 114 wrong buttons and
+                // invited a tap that re-queued a download you already had.
+                val downloaded by produceState<Boolean?>(
+                    initialValue = null,
                     surah.id, downloading, refresh,
                 ) {
                     value = withContext(Dispatchers.IO) {
@@ -144,8 +147,41 @@ fun ReciterManagerScreen(vm: WirdViewModel, reciterId: String, onBack: () -> Uni
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     LoadingIndicator(Modifier.size(36.dp))
+                                    // A running download had no way out short of
+                                    // force-stopping the app: a queued surah just
+                                    // spun until it finished.
+                                    IconButton(
+                                        onClick = { vm.audioStore.cancelSurahDownload(reciter, surah.id) },
+                                        shapes = IconButtonDefaults.shapes(),
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Cancel download")
+                                    }
                                 }
-                                downloaded -> {
+                                // Nothing at all until the check returns, rather
+                                // than a button that is probably wrong.
+                                downloaded == null -> Spacer(Modifier.size(48.dp))
+                                failed && downloaded == false -> {
+                                    // downloadFailed() was already published and
+                                    // nothing consumed it, so a download that gave
+                                    // up looked exactly like one never started.
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Download failed",
+                                        tint = cs.error,
+                                        modifier = Modifier.padding(8.dp),
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            vm.audioStore.enqueueSurahDownload(
+                                                reciter, surah.id, surah.ayahCount,
+                                            )
+                                        },
+                                        shapes = IconButtonDefaults.shapes(),
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Retry download")
+                                    }
+                                }
+                                downloaded == true -> {
                                     // Gold check = resident on device.
                                     Icon(
                                         Icons.Default.Check,
@@ -191,5 +227,75 @@ fun ReciterManagerScreen(vm: WirdViewModel, reciterId: String, onBack: () -> Uni
                 }
             }
         }
+    }
+
+    if (confirmRemoveAll) {
+        // 114 stat() calls; never on the main thread. -1 until it resolves.
+        val downloadedCount by produceState(-1, reciter, refresh) {
+            value = withContext(Dispatchers.IO) {
+                vm.surahs.count { vm.audioStore.isSurahDownloaded(reciter, it.id, it.ayahCount) }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { confirmRemoveAll = false },
+            title = { Text("Remove all downloads?") },
+            text = {
+                Text(
+                    "This deletes every surah you have downloaded for " +
+                        "${reciter.name}" +
+                        (if (downloadedCount > 0) " ($downloadedCount of 114)" else "") +
+                        ". You can download them again later.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveAll = false
+                    scope.launch {
+                        vm.surahs.forEach { surah ->
+                            vm.audioStore.deleteSurah(reciter, surah.id, surah.ayahCount)
+                        }
+                        refresh++
+                    }
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveAll = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (confirmDownloadAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDownloadAll = false },
+            title = { Text("Download the whole Quran?") },
+            text = {
+                Text(
+                    "This queues every surah ${reciter.name} has not already " +
+                        "recorded to your device. A full reciter is several " +
+                        "hundred megabytes and can exceed a gigabyte. It will " +
+                        "use mobile data if you are not on Wi-Fi.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDownloadAll = false
+                    scope.launch {
+                        // The exists() sweep is IO; enqueueing is not, but doing
+                        // both here keeps the 114 stat calls off the main thread.
+                        val missing = withContext(Dispatchers.IO) {
+                            vm.surahs.filterNot {
+                                vm.audioStore.isSurahDownloaded(reciter, it.id, it.ayahCount)
+                            }
+                        }
+                        missing.forEach {
+                            vm.audioStore.enqueueSurahDownload(reciter, it.id, it.ayahCount)
+                        }
+                    }
+                }) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDownloadAll = false }) { Text("Cancel") }
+            },
+        )
     }
 }

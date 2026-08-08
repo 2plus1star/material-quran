@@ -195,6 +195,28 @@ class QuranDb(private val context: Context) {
         }
     }
 
+    /**
+     * How many ayahs a context holds.
+     *
+     * The Library's last-read card only ever wanted the denominator of its
+     * progress bar, and was calling [ayahsFor] to get it — which for Al-Baqarah
+     * meant materialising 286 rows including the full Arabic, the translation
+     * and the footnotes, several thousand characters of it, on every settings
+     * change, purely to read `.size`.
+     */
+    suspend fun ayahCountFor(context: ReaderContext): Int = withContext(Dispatchers.IO) {
+        val column = when (context.type) {
+            ReaderContextType.SURAH -> "surah"
+            ReaderContextType.JUZ -> "juz"
+            ReaderContextType.HIZB -> "hizb"
+            ReaderContextType.PAGE -> "page"
+        }
+        open().rawQuery(
+            "SELECT COUNT(*) FROM ayah WHERE $column = ?",
+            arrayOf("${context.number}"),
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }
+
     suspend fun divisions(type: ReaderContextType): List<DivisionInfo> = withContext(Dispatchers.IO) {
         val column = when (type) {
             ReaderContextType.JUZ -> "juz"

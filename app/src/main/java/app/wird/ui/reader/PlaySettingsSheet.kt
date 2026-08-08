@@ -126,11 +126,30 @@ fun PlaySettingsSheet(
             }
 
             if (showRange && ayahs.size > 1) {
+                // The slider works in list positions, but a position is only the
+                // same thing as a verse number inside a single surah. In a juz,
+                // hizb or page the picker was labelling ayah 12 of An-Nisa as
+                // "12" while sitting on a row that was actually 4:23 — and the
+                // range it produced had nothing to do with the numbers shown.
+                val crossesSurahs = remember(ayahs) {
+                    ayahs.first().surah != ayahs.last().surah
+                }
+                val labelFor: (Int) -> String = remember(ayahs, crossesSurahs) {
+                    { position ->
+                        val ayah = ayahs.getOrNull(position - 1)
+                        when {
+                            ayah == null -> "$position"
+                            crossesSurahs -> "${ayah.surah}:${ayah.num}"
+                            else -> "${ayah.num}"
+                        }
+                    }
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Range", style = MaterialTheme.typography.titleSmall)
                     AyahRangeSlider(
                         range = range,
                         max = ayahs.size,
+                        labelFor = labelFor,
                         onRange = { range = it },
                     )
                 }
@@ -205,6 +224,7 @@ fun PlaySettingsSheet(
 private fun AyahRangeSlider(
     range: ClosedFloatingPointRange<Float>,
     max: Int,
+    labelFor: (Int) -> String,
     onRange: (ClosedFloatingPointRange<Float>) -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -243,6 +263,8 @@ private fun AyahRangeSlider(
     var startCenterPx by remember { mutableFloatStateOf(0f) }
     var endCenterPx by remember { mutableFloatStateOf(0f) }
     val bubble = 50.dp
+    val startLabel = labelFor(startVal)
+    val endLabel = labelFor(endVal)
 
     Column(
         modifier = Modifier.onGloballyPositioned { containerLeftPx = it.positionInWindow().x },
@@ -251,8 +273,8 @@ private fun AyahRangeSlider(
         // Fixed-height strip holds the value bubble above the slider, so grabbing
         // a thumb never reflows the slider mid-drag.
         Box(Modifier.fillMaxWidth().height(56.dp)) {
-            DragBubble(startDragged, startVal, bubble, startCenterPx - containerLeftPx)
-            DragBubble(endDragged, endVal, bubble, endCenterPx - containerLeftPx)
+            DragBubble(startDragged, startLabel, bubble, startCenterPx - containerLeftPx)
+            DragBubble(endDragged, endLabel, bubble, endCenterPx - containerLeftPx)
         }
 
         RangeSlider(
@@ -282,7 +304,7 @@ private fun AyahRangeSlider(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StepperField(
                 label = "From",
-                value = startVal,
+                value = startLabel,
                 modifier = Modifier.weight(1f),
                 onUp = { if (startVal < endVal) update(startVal + 1, endVal) },
                 onDown = { if (startVal > 1) update(startVal - 1, endVal) },
@@ -291,7 +313,7 @@ private fun AyahRangeSlider(
             )
             StepperField(
                 label = "To",
-                value = endVal,
+                value = endLabel,
                 modifier = Modifier.weight(1f),
                 onUp = { if (endVal < max) update(startVal, endVal + 1) },
                 onDown = { if (endVal > startVal) update(startVal, endVal - 1) },
@@ -308,14 +330,17 @@ private fun AyahRangeSlider(
  * stays exactly aligned. A BoxScope extension so `align` resolves cleanly.
  */
 @Composable
-private fun BoxScope.DragBubble(visible: Boolean, value: Int, size: Dp, centerXPx: Float) {
+private fun BoxScope.DragBubble(visible: Boolean, value: String, size: Dp, centerXPx: Float) {
     val cs = MaterialTheme.colorScheme
     val p by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
         label = "bubble",
     )
-    val halfPx = with(LocalDensity.current) { size.toPx() / 2f }
+    // A "2:255" reference does not fit a circle sized for "255", so the bubble
+    // becomes a pill when the label is long rather than clipping it.
+    val width = if (value.length > 3) size * 1.7f else size
+    val halfPx = with(LocalDensity.current) { width.toPx() / 2f }
     Box(
         Modifier
             .align(Alignment.BottomStart)
@@ -326,13 +351,13 @@ private fun BoxScope.DragBubble(visible: Boolean, value: Int, size: Dp, centerXP
                 alpha = p
                 transformOrigin = TransformOrigin(0.5f, 1f)
             }
-            .size(size)
-            .clip(CircleShape)
+            .size(width = width, height = size)
+            .clip(if (width == size) CircleShape else RoundedCornerShape(50))
             .background(cs.primary),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            value.toString(),
+            value,
             color = cs.onPrimary,
             style = MaterialTheme.typography.titleMediumEmphasized.copy(fontFeatureSettings = "tnum"),
             maxLines = 1,
@@ -362,11 +387,18 @@ private fun RangeThumb(dragged: Boolean, color: Color, onCenterX: (Float) -> Uni
     }
 }
 
-/** A number field with a stacked up/down ticker pair. */
+/**
+ * A number field with an up/down ticker pair.
+ *
+ * The tickers sit side by side rather than stacked. Stacked, each one measured
+ * 44×30dp — under the 48dp minimum touch target in both axes, doubly so because
+ * two of them shared a 60dp column, so a miss did not just do nothing, it
+ * stepped the value the wrong way.
+ */
 @Composable
 private fun StepperField(
     label: String,
-    value: Int,
+    value: String,
     onUp: () -> Unit,
     onDown: () -> Unit,
     upEnabled: Boolean,
@@ -379,28 +411,24 @@ private fun StepperField(
         color = cs.surfaceContainerHighest,
         modifier = modifier,
     ) {
-        Row(
-            Modifier.padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
+        Column(Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.onSurfaceVariant,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = cs.onSurfaceVariant,
-                )
-                Text(
-                    value.toString(),
+                    value,
                     style = MaterialTheme.typography.headlineSmallEmphasized.copy(
                         fontFeatureSettings = "tnum",
                     ),
                     color = cs.onSurface,
                     maxLines = 1,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            Column {
-                Ticker(Icons.Default.KeyboardArrowUp, "Increase $label", onUp, upEnabled)
                 Ticker(Icons.Default.KeyboardArrowDown, "Decrease $label", onDown, downEnabled)
+                Ticker(Icons.Default.KeyboardArrowUp, "Increase $label", onUp, upEnabled)
             }
         }
     }
@@ -416,8 +444,8 @@ private fun Ticker(
     val cs = MaterialTheme.colorScheme
     Box(
         Modifier
-            .size(width = 44.dp, height = 30.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .size(48.dp)
+            .clip(RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

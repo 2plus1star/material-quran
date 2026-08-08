@@ -26,6 +26,9 @@ import app.wird.data.UserSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import app.wird.data.ReadingPositions
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -53,8 +56,27 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
     val audioStore = AudioStore(application)
     val audio = AudioController(application)
 
+    /**
+     * Display preferences only.
+     *
+     * The reading position is written to this same DataStore on a 600 ms timer
+     * while the user scrolls. Because every screen collects this flow, each of
+     * those writes used to invalidate the whole UI — including every visible
+     * ayah card — exactly when the frame budget is tightest. Position changes
+     * are filtered out here and published separately as [lastRead], which only
+     * the Library card collects.
+     */
     val settings: StateFlow<UserSettings?> = settingsRepo.settings
+        .distinctUntilChanged { a, b ->
+            a.copy(lastRead = LastRead(), positions = ReadingPositions()) ==
+                b.copy(lastRead = LastRead(), positions = ReadingPositions())
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val lastRead: StateFlow<LastRead> = settingsRepo.settings
+        .map { it.lastRead }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LastRead())
 
     var surahs by mutableStateOf<List<Surah>>(emptyList())
         private set
@@ -112,6 +134,11 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 emptyMap()
             }
+            // No explicit restore? Use the position saved for THIS context.
+            // Previously every entry started at index 0 and the autosave then
+            // overwrote wherever you actually were, so reopening a surah from
+            // the Library silently discarded your place.
+            val resolved = restore ?: settingsRepo.current().positions.forContext(context)
             val (title, subtitle) = titleFor(context)
             reader.value = ReaderUiState(
                 context = context,
@@ -120,8 +147,8 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
                 ayahs = ayahs,
                 tajweed = tajweed,
                 basmala = basmala,
-                restoreIndex = restore?.firstVisibleIndex ?: 0,
-                restoreOffset = restore?.firstVisibleOffset ?: 0,
+                restoreIndex = resolved?.firstVisibleIndex ?: 0,
+                restoreOffset = resolved?.firstVisibleOffset ?: 0,
             )
             if (scrollToAyahId != null) pendingScrollAyah.value = scrollToAyahId
             if (selectAyahId != null) pendingSelectAyah.value = selectAyahId
@@ -179,6 +206,7 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
                     firstVisibleIndex = firstVisibleIndex,
                     firstVisibleOffset = firstVisibleOffset,
                     progressIndex = progressIndex,
+                    savedAt = System.currentTimeMillis(),
                 ),
             )
         }
@@ -188,7 +216,12 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun surahOf(ayahId: Int): Surah? = db.ayah(ayahId)?.let { db.surah(it.surah) }
 
+    /** The surah index is already resident; no query needed to name one. */
+    fun surahById(id: Int): Surah? = surahs.firstOrNull { it.id == id }
+
     suspend fun ayahsFor(context: ReaderContext): List<Ayah> = db.ayahsFor(context)
+
+    suspend fun ayahCountFor(context: ReaderContext): Int = db.ayahCountFor(context)
 
     /** Tapping the Library's Last-read card: re-open that context at its position. */
     fun resumeLastRead() {
@@ -212,19 +245,23 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
 
     fun playFrom(ayahId: Int) {
         val state = reader.value
-        audio.play(state.ayahs, currentReciter(), ayahId, ::surahName)
+        viewModelScope.launch { audio.play(state.ayahs, currentReciter(), ayahId, ::surahName) }
     }
 
     fun playRange(startIndex: Int, endIndex: Int) {
         val state = reader.value
+        if (state.ayahs.isEmpty()) return
         val slice = state.ayahs.subList(
             startIndex.coerceIn(0, state.ayahs.lastIndex),
             (endIndex + 1).coerceIn(1, state.ayahs.size),
         )
-        if (slice.isNotEmpty()) audio.play(slice, currentReciter(), slice.first().id, ::surahName)
+        if (slice.isEmpty()) return
+        viewModelScope.launch { audio.play(slice, currentReciter(), slice.first().id, ::surahName) }
     }
 
-    fun playSingle(ayah: Ayah) = audio.playSingle(ayah, currentReciter(), ::surahName)
+    fun playSingle(ayah: Ayah) {
+        viewModelScope.launch { audio.playSingle(ayah, currentReciter(), ::surahName) }
+    }
 
     fun setRepeat(value: RepeatCount) = audio.setRepeat(value)
 
@@ -241,7 +278,16 @@ class WirdViewModel(application: Application) : AndroidViewModel(application) {
         refreshTajweed()
     }
     fun setArabicScale(v: Float) = viewModelScope.launch { settingsRepo.setArabicScale(v) }
-    fun setReciter(dirName: String) = viewModelScope.launch { settingsRepo.setReciter(dirName) }
+
+    /**
+     * Also swaps the voice of anything already sounding. Picking a reciter from
+     * the play sheet mid-recitation used to change nothing audible, with no
+     * indication that it would only apply the next time Play was pressed.
+     */
+    fun setReciter(dirName: String) = viewModelScope.launch {
+        settingsRepo.setReciter(dirName)
+        audio.changeReciter(Reciters.byId(dirName), ::surahName)
+    }
 
     fun toggleBookmark(ayahId: Int) = viewModelScope.launch { settingsRepo.toggleBookmark(ayahId) }
 

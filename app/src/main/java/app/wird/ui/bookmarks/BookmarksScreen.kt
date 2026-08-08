@@ -98,13 +98,34 @@ fun BookmarksScreen(vm: WirdViewModel, openReader: () -> Unit) {
                         containerColor = cs.surfaceContainerLow,
                     ),
                     leadingContent = {
-                        NumberBadge(number = ayah.num, type = ReaderContextType.SURAH)
+                        // The badge shape encodes revelation, so it has to be
+                        // told which surah this is. Without it every bookmark
+                        // drew the Arch — i.e. claimed to be Medinan, including
+                        // the 86 Meccan surahs.
+                        NumberBadge(
+                            number = ayah.num,
+                            type = ReaderContextType.SURAH,
+                            revelation = vm.surahById(ayah.surah)?.revelation,
+                        )
                     },
                     supportingContent = {
                         Text(
                             ayah.translation,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    overlineContent = {
+                        // Which surah this verse is from. The list used to show
+                        // a bare ayah number, so two bookmarks on ayah 5 of
+                        // different surahs were indistinguishable.
+                        Text(
+                            "${vm.surahById(ayah.surah)?.tname ?: "Surah ${ayah.surah}"} " +
+                                "· ${ayah.surah}:${ayah.num}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = cs.onSurfaceVariant,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     },

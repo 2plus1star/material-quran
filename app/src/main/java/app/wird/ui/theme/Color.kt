@@ -98,13 +98,26 @@ fun ColorScheme.toAmoledBlack(): ColorScheme = copy(
     surfaceContainerHighest = Color(0xFF242A27),
 )
 
-/** The reader's warm paper surface (light themes only). */
+/**
+ * The reader's warm paper surface (light themes only).
+ *
+ * [selection] and [sounding] exist because the reader used to fall back to the
+ * scheme's secondary/tertiary containers for those two states, and both of those
+ * are mosque-green. On cream paper that read as a green card dropped onto a
+ * sepia page. Both are ochres off the same paper hue instead, and they differ
+ * enough from each other to tell a tapped ayah from a sounding one.
+ */
 object SepiaSurface {
     val background = Color(0xFFF7F1E2)
     val onBackground = Color(0xFF2C2517)
     val muted = Color(0xFF77694E)
     val container = Color(0xFFEFE7D2)
-    val selection = Color(0xFFE3EFDD)
+
+    /** Tapped ayah: a deeper wash of the paper itself. */
+    val selection = Color(0xFFE6D5A6)
+
+    /** Sounding ayah: warmer and pinker, so it never reads as the selection. */
+    val sounding = Color(0xFFF2D9BC)
 }
 
 /**

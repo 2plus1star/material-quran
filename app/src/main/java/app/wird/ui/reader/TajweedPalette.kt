@@ -57,4 +57,30 @@ object TajweedPalette {
 
     fun color(rule: Int, isDark: Boolean): Color? =
         (if (isDark) dark else light).getOrNull(rule)
+
+    /**
+     * What each colour means, for the legend in Settings.
+     *
+     * Tajweed colouring shipped with no key at all, which made it decoration:
+     * eighteen colours appeared in the text and nothing anywhere in the app said
+     * what any of them were. Rules that share a colour share a line, so the list
+     * is thirteen entries rather than eighteen identical-looking ones.
+     */
+    data class Entry(val label: String, val rule: Int)
+
+    val legend = listOf(
+        Entry("Ghunnah", 0),
+        Entry("Idghaam", 1),
+        Entry("Idghaam mutajaanisain and mutaqaaribain", 3),
+        Entry("Idghaam shafawi", 5),
+        Entry("Ikhfa", 6),
+        Entry("Ikhfa shafawi", 7),
+        Entry("Iqlab", 8),
+        Entry("Madd, 2 counts", 9),
+        Entry("Madd, 2 4 or 6 counts", 10),
+        Entry("Madd muttasil and munfasil", 11),
+        Entry("Madd, 6 counts", 13),
+        Entry("Qalqalah", 14),
+        Entry("Hamzat wasl, lam shamsiyyah, silent letters", 15),
+    )
 }

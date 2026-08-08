@@ -1,0 +1,23 @@
+Reading position is now kept per surah, juz, hizb and page, and reopening one
+from the library returns to where you stopped.
+
+Book mode: long surahs open straight away instead of freezing, the verse
+reference and progress bar follow the page, ayahs can be bookmarked, and tapping
+one shows its translation.
+
+A key for the tajweed colours in Settings.
+
+Choosing a reciter while a recitation is playing now changes the voice without
+losing your place.
+
+Downloads can be cancelled, a failed one says so and offers to retry, and
+downloading a whole reciter asks first and tells you how large it is.
+
+Playback failures are explained instead of leaving a spinner.
+
+Bookmarks show which surah each verse is from.
+
+The playback range picker shows verse numbers rather than list positions.
+
+Warmer selection colours on the sepia page, larger touch targets, screen reader
+labels, and a layout that fits landscape and tablets.

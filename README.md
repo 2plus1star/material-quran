@@ -39,31 +39,6 @@ Without it the build still configures, it just produces an unsigned artifact.
 The `.p12` is the **upload key**, not the app signing key, which Google holds
 under Play App Signing.
 
-## The database
-
-`app/src/main/assets/quran.db` is prebuilt by `tools/build_db.py` from the
-sources in `tools/data/`. Rebuild it with:
-
-```bash
-python3 tools/build_db.py
-```
-
-Two things that must move together:
-
-- **`PRAGMA user_version` in `build_db.py` and `QuranDb.ASSET_VERSION`.** The app
-  compares them on open and re-copies the asset when they differ. That is the
-  only mechanism by which a corrected database reaches someone who already
-  opened the app, so bumping one without the other silently ships nothing.
-- **The tajweed span offsets.** `tajweed_span.start/end` are absolute codepoint
-  indices into `tajweed_text`. Anything that changes the stored text has to
-  re-base them.
-
-## Privacy
-
-See [PRIVACY.md](PRIVACY.md). No accounts, no analytics, no tracking. The only
-network request is fetching recitation audio from everyayah.com, and only when
-the user asks for it.
-
 | Asset | Terms |
 |---|---|
 | Arabic text | [Tanzil Project](https://tanzil.net), CC BY 3.0. Redistributed verbatim; Tanzil's terms also state that changing it is not allowed. |

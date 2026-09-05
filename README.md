@@ -3,7 +3,7 @@
 An offline Quran reader for Android, built with Jetpack Compose and Material 3
 Expressive.
 
-Play Store title: **Material Quran** · package `app.wird` · free, no ads, no
+Free, no ads, no
 accounts, no analytics.
 
 
@@ -13,18 +13,6 @@ accounts, no analytics.
   <img src="docs/screenshots/q-03-tajweed.png" width="24%" alt="The same page with tajweed colouring enabled">
   <img src="docs/screenshots/q-05-settings.png" width="24%" alt="Reading settings">
 </p>
-
-## What it does
-
-- **Read** — Uthmani Arabic text with an English translation after each ayah,
-  optional tajweed colouring, and a book mode where ayahs flow continuously like
-  a printed page.
-- **Navigate** — by surah, juz, hizb or page. The app reopens where you stopped.
-- **Listen** — 16 reciters, per-ayah or per-range playback, per-ayah repeat, and
-  follow-along highlighting. Surahs can be downloaded for offline listening.
-- **Bookmark** any ayah.
-
-The full text ships in the app. Reading needs no connection.
 
 ## Building
 
@@ -70,53 +58,11 @@ Two things that must move together:
   indices into `tajweed_text`. Anything that changes the stored text has to
   re-base them.
 
-## The Basmala
-
-`data/Bismillah.kt` separates the Basmala from ayah 1 so it renders as a heading
-rather than being counted as part of the first verse. Four cases it has to get
-right, all verified against the shipped database rather than assumed:
-
-1. **Al-Fatiha** — the Basmala *is* ayah 1 under this text's numbering. Never
-   split surah 1.
-2. **At-Tawbah** — opens with no Basmala at all.
-3. **An-Naml 27:30** — contains the Basmala *inside* the verse. Only a *leading*
-   occurrence on ayah 1 may be cut.
-4. **At-Tin (95) and Al-Qadr (97)** — spelled `بِّسْمِ`, with a shadda on the bā'
-   that no other surah carries.
-
-Case 4 is why the match compares consonantal skeletons with diacritics removed
-instead of raw strings, and why the cut offset is computed per ayah (39 for most
-surahs, 40 for those two) rather than being a constant. The canonical Basmala is
-read out of Al-Fatiha 1:1 in the database rather than hardcoded, because the text
-uses U+0671 ALEF WASLA where a hand-typed literal uses U+0627 ALEF and would
-silently never match.
-
-`BismillahTest` pins all of it, with fixtures copied verbatim out of the
-database.
-
-## Layout
-
-```
-app/src/main/java/app/wird/
-  data/          Quran database, settings, audio store, reciters, Basmala split
-  audio/         MediaSessionService playback and its controller
-  ui/            Compose screens: library, reader, bookmarks, settings
-tools/           build_db.py and the Tanzil / QuranEnc / tajweed sources
-```
-
 ## Privacy
 
 See [PRIVACY.md](PRIVACY.md). No accounts, no analytics, no tracking. The only
 network request is fetching recitation audio from everyayah.com, and only when
 the user asks for it.
-
-## Licence
-
-The source code is licensed under the [Apache License 2.0](LICENSE).
-
-That covers the code in this repository only. **The Quran text, the translation,
-the tajweed data and the fonts are not ours to relicense**, and the Apache
-licence does not extend to them:
 
 | Asset | Terms |
 |---|---|
@@ -127,7 +73,3 @@ licence does not extend to them:
 
 Recitation audio is **not** bundled. It is downloaded from everyayah.com at the
 user's request and remains the property of each reciter and producer.
-
-If you fork this, read [ATTRIBUTION.md](ATTRIBUTION.md) before redistributing.
-The translation in particular must stay unmodified, which is why the publisher's
-inline footnote markers are preserved rather than stripped.
